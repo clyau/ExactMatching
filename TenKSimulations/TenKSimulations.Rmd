@@ -1,0 +1,199 @@
+---
+title: "Simulation and summary of simulation results"
+output: html_notebook
+---
+
+```{r}
+## 'fn_simdt.R' defines the parameters for the simulation
+## ... and the function for running 1 simulation
+source('fn_simdt.R')
+##
+set.seed(20250105)
+rand_seeds <- sample(1:100000, size = 10000, replace = FALSE)
+rs_k <- rand_seeds[1:10] ## ten runs
+t.start <- proc.time()
+sim10k <- mapply(sim.dt.fn,
+                 r_and_s = rs_k, 
+                 n1_obs = 300, 
+                 n2_obs = 300
+)
+t.end <- proc.time()
+t.start
+t.end
+t.end - t.start ## total run time
+rm(list = ls()[!ls() %in% c('rs_10k', 'sim10k', 't.start', 't.end')])
+## 
+save.image("sim10k.RData")
+## 
+```
+
+
+## 2025-01-23
+
+Response variable Y is also simulation. It depends on X1, X3, X8, X9, X11, and X15. The dependency on X9 and X15 are the underlying continuous version of these variables; on X1, X3, X8, and X11 are categorical.
+
+## Background
+
+The simulations are done on updated, local copy of `exmLP.2ipd()` and `exmWt.2ipd()`. The new functions are in "08_emmEx/simulatedExamples15/fnUpdates/local_exmLP.R" and "local_exmWt.R". 
+
+Simulation parameters can be found in "08_emmEx/simulatedExamples15/fnUpdates/check_local_fns_new.R". 
+
+To run the simulations:
+"08_emmEx/simulatedExamples15/fnUpdates/checks.R". 
+
+
+## Summary 
+
+```{r setup, echo=FALSE, eval=FALSE}
+require(dplyr, quietly = TRUE)
+require(tidyverse, quietly = TRUE)
+source('../../funs.R')
+getwd()
+## load data here if need
+load("~/OneDrive - Novartis Pharma AG/Documents/bb/aa_NewStat/08_emmEx/simulatedExamples15/sim10k/YandCatX1X3X8X11/fnUpdatesSim10KcatX1X3X8X11.RData")
+local_sim10k_cat <- local_sim10k
+```
+
+### Summary of difference in response variable 
+
+This is when the weighted mean difference is 0.
+
+```{r}
+selected_elements <- local_sim10k_cat[4,]
+ybar_df_cat <- do.call(rbind, selected_elements) 
+## summary
+x <- summary(ybar_df_cat[,9:12])
+x <- t(x)
+x <- as.data.frame(x)
+x <- separate(x, col = Freq, into = c("summ", "stats"), sep = ":") %>%
+  select(-Var2)
+x_wide_cat <- x %>% 
+  pivot_wider(names_from = Var1, values_from = stats) %>%
+  filter(!is.na(summ))
+x.sd <- apply(ybar_df_cat[,9:12], 2, sd, na.rm=TRUE)
+x.sd
+x_ybar_cat <- data.frame(rbind(c('# of simulations', rep(10000, 4)),
+                           x_wide_cat, 
+                           c('sd', round(x.sd, 3))))
+x_ybar_cat
+flextable::flextable(x_ybar_cat)
+
+xtable::xtable(x_ybar_cat, 
+               caption = "Summary statistics of the mean difference in the response variable Y between IPD 1 and IPD 2 in their observed values, exact matched weighted values (unconstrained and constrained), and propensity score weighted values.", 
+               label = "tab:summybar_cat")
+```
+
+Histogram of the mean difference in ybar (not used in manuscript)
+
+```{r}
+ybar_long_cat <- ybar_df_cat %>% 
+  pivot_longer(cols = c("diff.obs", "diff.unc", "diff.con", "diff.ps"),
+               names_to = 'type',
+               values_to = 'ybar.diff') %>%
+  mutate(method = ifelse(type == 'diff.obs', 'Observed',
+                         ifelse(type == 'diff.unc',  'Unconstrained',
+                                ifelse(type == 'diff.con', 'Constrained', 'PS weighted'))
+                        ),
+         method = factor(method, levels = c('Observed', 'Unconstrained', 'Constrained', 'PS weighted'))
+         ) %>%
+  select(ybar.diff, type, method) %>%
+  filter(!is.na(ybar.diff)) ## %>%
+##  filter(ybar.diff <= 1.25)
+##
+p20k <- ggplot(ybar_long_cat, aes(ybar.diff)) +
+  theme_bw() +
+  geom_vline(xintercept = 0, color = 'red', lwd = 0.5, linetype = 'dashed') +
+  geom_histogram(bins = 30,
+                 aes(y = after_stat(count / sum(count))),
+                 fill = 'grey', color = 'black') +
+  facet_grid(method ~ .) + ##
+  scale_x_continuous(breaks = seq(-1, 1, 0.25),
+                     labels = seq(-1, 1, 0.25)) +
+  xlab('Difference in mean responses') +
+  ylab('Density') +
+  theme(strip.text.x = element_text(size = 12),
+        strip.text.y = element_text(size = 12)
+        )
+print(p20k)
+##
+getwd()
+ggsave('histYbar10KwY.png', 
+       plot = p20k, 
+       width = 10, 
+       height = 6, 
+       units = 'in',
+       dpi = 300)
+```
+
+Boxplot of mean difference: presented in the manuscript
+
+```{r}
+## reverse the method levels for boxplot
+ybar_long_cat <- ybar_long_cat %>% 
+  mutate(method = factor(method, 
+                         levels = c('PS weighted', 
+                                    'Constrained',
+                                    'Unconstrained', 
+                                    'Observed'))
+  )
+##x0 <- data.frame(t(x_ybar[5,2:5]))
+##colnames(x0) <- 'ybar.diff'
+##x0$method <- row.names(x0)
+```
+
+```{r}
+p22k_cat <- ggplot(ybar_long_cat, aes(ybar.diff, method)) +
+  geom_boxplot(orientation = 'y') + 
+  geom_vline(xintercept = 0, 
+             color = 'red', 
+             linetype = 'dashed',
+             lwd = 1) +
+  theme_bw() +
+  scale_x_continuous(breaks = seq(-2, 2.55, 0.5),
+                     limits = c(-2, 2.55)
+                     ##labels = seq(-1, 1, 0.25)
+                     ) +
+  theme(
+    axis.title.x = element_text(size = 13),   
+    axis.title.y = element_text(size = 13),  
+    axis.text.x = element_text(size = 12),    
+    axis.text.y = element_text(size = 12)     
+  ) +
+  xlab('Difference in mean responses') +
+  ylab(NULL) ##+
+##  geom_point(data = x0, aes(ybar.diff))
+##
+print(p22k_cat)
+getwd()
+ggsave('boxYbar10kcat.png', 
+       plot = p22k_cat, 
+       width = 10, 
+       height = 3, 
+       units = 'in',
+       dpi = 300)
+```
+
+Scatter plot of the mean difference
+
+```{r}
+p25k <- ggplot(ybar_df_cat, aes(diff.unc, diff.ps)) +
+  geom_point()
+print(p25k)
+```
+
+### Summary of run-time
+
+```{r}
+selected_elements <- local_sim10k_cat[5,]
+second_rows <- lapply(selected_elements, function(df) df[2, ])
+# Combine these rows into a new dataframe
+run_times <- do.call(rbind, second_rows) 
+rownames(run_times) <- 1:10000
+summary(run_times)
+```
+
+```{r eval=FALSE}
+## removed everything except local_sim10k_cat
+save.image("~/OneDrive - Novartis Pharma AG/Documents/bb/aa_NewStat/08_emmEx/simulatedExamples15/sim10k/YandCatX1X8/fnUpdatedSim10KcatX1X8.RData")
+```
+
