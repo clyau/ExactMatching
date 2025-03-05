@@ -213,7 +213,7 @@ means.wtd.2.f <- data.frame(x1 = os.dt2.f$wtd.summ[3],
 means.wtd.3.f <- data.frame(x1 = os.dt3.f$wtd.summ[3], 
                             x2 = os.dt3.f$wtd.summ[4],
                             x1.txt = os.dt3.f$wtd.summ[3], 
-                            x2.txt = os.dt3.f$wtd.summ[4] - 0.15) 
+                            x2.txt = os.dt3.f$wtd.summ[4] - 0.2)
 ```
 
 ### Weight means of constrained exact matching
@@ -302,7 +302,7 @@ dt.means.rev <- dt.means.rev %>%
            dt.means[which(dt.means$which.means == 'IPD 2'),]$x2 * 
            n_ipd2 / (n_ipd1 + n_ipd2),
          x1.txt = x1,
-         x2.txt = ifelse(example == 'example 1', x2 - 0.01,
+         x2.txt = ifelse(example == 'example 1', x2 + 0.005,
                          ifelse(example == 'example 2', 
                                 x2 - 0.08,
                                 x2 + 0.2)),
@@ -313,14 +313,14 @@ dt.means.rev <- dt.means.rev %>%
   )
 ##
 dt.means.rev <- data.frame(rbind(dt.means, dt.means.rev)) 
-## 2025-02-04: change IPD 1 to IPD A, IPD 2 to IPD B
-# dt.means.rev <- dt.means.rev %>%
-#   mutate(which.means.old = which.means) %>%
-#   mutate(which.means = ifelse(which.means.old == 'IPD 1', 'IPD A',
-#                               ifelse(which.means.old == 'IPD 2', 'IPD B',
-#                                      ifelse(which.means.old == 'IPD 1 + IPD 2', 'IPD A + IPD B', 
-#                                             which.means.old)))
-#   )
+## in the manuscript they are called IPD A and IPD B
+dt.means.rev <- dt.means.rev %>%
+  mutate(which.means.o = which.means) %>%
+  mutate(which.means = ifelse(which.means.o == 'IPD 1', 'IPD A',
+                              ifelse(which.means.o == 'IPD 2', 'IPD B',
+                                     ifelse(which.means.o == 'IPD 1 + IPD 2', 'IPD A + IPD B',
+                                            which.means.o)))
+  )
 ```
 
 ## Figures in the manuscript
@@ -335,7 +335,7 @@ fig.1 <- ggplot(dt.all,
   theme_bw() +
   geom_point() +
   scale_shape_manual(values = c(3, 1), 
-                     labels = c('IPD 1', 'IPD 2')) +
+                     labels = c('IPD A', 'IPD B')) +
   facet_wrap(. ~ example, scales = "free") +
   theme(legend.position = 'none', 
         legend.title = element_blank(),
@@ -371,10 +371,10 @@ fig.2top <- ggplot(data = dt.all,
   ) + 
   theme_bw() +
   scale_shape_manual(values = c(3, 1, 18, 18, 15, 17, 19),
-                     labels = c('IPD 1', 'IPD2', '', '', '')) +
+                     labels = c('IPD A', 'IPD B', '', '', '')) +
   scale_color_manual(values = c('grey65', 'grey65', 'black', 'black',
                                 'red', 'blue', 'black'),
-                     labels = c('IPD 1', 'IPD2', '', '', '', '')) +
+                     labels = c('IPD A', 'IPD B', '', '', '', '')) +
   geom_segment(data = dt.means.rev,
                aes(x = minx1, xend = maxx1,
                    y = minx2, yend = minx2),
@@ -433,11 +433,11 @@ fig.2bott <- dt.means.rev %>%
              size = 3) +
   theme_bw() +
   scale_shape_manual(values = c(3, 1, 18, 18, 15, 17, 19),
-                     labels = c('IPD 1', 'IPD2', '', '', '')) +
+                     labels = c('IPD A', 'IPD B', '', '', '')) +
   scale_color_manual(values = c('grey65', 'grey65', 'black', 'black', 
                                 'red', 'blue', 'black'),
                      ##c(4, 2, 1, 1, 1, 1),
-                     labels = c('IPD 1', 'IPD2', '', '', '')) +
+                     labels = c('IPD A', 'IPD B', '', '', '')) +
   geom_text(data = subset(dt.means.rev, !is.na(x1) & !is.na(x2)), 
             aes(x1.txt, x2.txt, label = which.means)
   ) +
