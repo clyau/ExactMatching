@@ -1,20 +1,17 @@
 ---
 title: "Simulation and summary of simulation results"
 output: html_document
-knit: (function(input, encoding) {
-    rmarkdown::render(
-      input = input,
-      encoding = encoding,
-      envir = globalenv()
-    )
-  })
 ---
+
+## `maicChecks` version 0.2.0 is required
+
+To run the exact matching, R package `maicChecks` version 0.2.0 is required. The package can be downloaded from CRAN.
 
 ## Simulate data, perform matching, summarize results
 
 Although each simulation takes less than 0.1 second machine time on a standard laptop, the user run time can be much longer. To run all 10,000 simulation, please expect up to 2 hours user run time.
 
-The chunk below runs 10 simulations. To change this, set `rs_k <- rand_seeds`.
+The code below runs 10 simulations. To change this, set `rs_k <- rand_seeds`.
 
 ```{r warning=FALSE, message=FALSE}
 ## 'fn_simdt.R' defines the parameters for the simulation
@@ -24,7 +21,7 @@ source('fn_simdt.R')
 set.seed(20250105)
 rand_seeds <- sample(1:100000, size = 10000, replace = FALSE)
 ## ::::::::::::::::::::::::::::::::: ##
-rs_k <- rand_seeds ## ten runs ##
+rs_k <- rand_seeds ## ten runs       ##
 ## ::::::::::::::::::::::::::::::::: ##
 t.start <- proc.time()
 sim10k <- mapply(sim.dt.fn,
@@ -37,6 +34,7 @@ t.start
 t.end
 t.end - t.start ## total run time
 rm(list = ls()[!ls() %in% c('rs_10k', 'sim10k', 't.start', 't.end')])
+save.image("sim10ksumm.RData")
 ```
 
 ## Summary 
@@ -255,12 +253,19 @@ summary(run_times)
 
 This is the 110th simulated data. 
 
+### ESS
+
+```{r}
+s.num <- 110
+simdt110_ess <- sim10k[2, s.num]$ess
+print(simdt110_ess)
+```
+
 ### Summary statistics of the covariates
 
-Table 4 in the manuscript. 
+Table 4 in the manuscript
 
 ```{r summ1}
-s.num <- 10
 simdt110_means <- sim10k[3, s.num]$all_means %>%
   select(-c('v.names', 'abs.smd')) ## work on abs.smd separately
 ## get abs.smd for later
@@ -345,14 +350,29 @@ print(x_all)
 ### Summary statistics of the response variable Y and Yc
 
 ```{r}
-simdt110_ybar <- round(sim10k[4, s.num]$ybar, 3)
-print(simdt110_ybar)
 simdt110_ycbar <- round(sim10k[5, s.num]$ycbar, 3)
 print(simdt110_ycbar)
+simdt110_ybar <- round(sim10k[4, s.num]$ybar, 3)
+print(simdt110_ybar)
 ```
 
 ## Save workspace
 
 ```{r}
-##save.image("sim10ksumm.RData")
+rm(list = ls()[!ls() %in% 
+                 c('rs_10k', 'sim10k',
+                   't.start', 't.end',
+                   'ess_df', 'ess_long', 
+                   'max_weights',
+                   'p10k', 'p22k', 'p24k', 
+                   'simdt110_means', 'simdt110_ybar',
+                   'simdt110_ycbar', 'x_all',
+                   'ybar_df', 'ybar_long', 
+                   'ycbar_df', 'ycbar_long')])
+save.image("sim10ksumm.RData")
 ```
+
+```{r}
+sessionInfo()
+```
+

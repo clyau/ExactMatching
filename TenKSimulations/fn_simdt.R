@@ -8,8 +8,6 @@ require(maicChecks) ## version 0.2.0
 ## 
 source("funs.R") 
 ## common parameter values
-n1_obs <- 300 ## number of observations in ipd1
-n2_obs <- 300 ## number of observations in ipd2
 # Set the number of variables and the block size
 n_variables <- 15
 block_size <- 5
@@ -53,6 +51,7 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
   ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
   ## :::::::::::::::::::: simulate data :::::::::::::::::::: ##
   ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
+  
   ## 
   ## IPD A ::::::::::::::::::::::::::::::::::::::::::::::::: ##
   ## 
@@ -171,6 +170,7 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
   ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
   ## ::::::::::: matching & calculating weights :::::::::::: ##
   ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
+  
   ##
   ## exact matching :::::::::::::::::::::::::::::::::::::::: ##
   ##
