@@ -21,7 +21,7 @@ source('fn_simdt.R')
 set.seed(20250105)
 rand_seeds <- sample(1:100000, size = 10000, replace = FALSE)
 ## ::::::::::::::::::::::::::::::::: ##
-rs_k <- rand_seeds ## ten runs       ##
+rs_k <- rand_seeds[1:10] ## ten runs ##
 ## ::::::::::::::::::::::::::::::::: ##
 t.start <- proc.time()
 sim10k <- mapply(sim.dt.fn,
@@ -33,7 +33,7 @@ t.end <- proc.time()
 t.start
 t.end
 t.end - t.start ## total run time
-rm(list = ls()[!ls() %in% c('rs_10k', 'sim10k', 't.start', 't.end')])
+rm(list = ls()[!ls() %in% c('rand_seeds', 'sim10k', 't.start', 't.end')])
 save.image("sim10ksumm.RData")
 ```
 
@@ -360,7 +360,7 @@ print(simdt110_ybar)
 
 ```{r}
 rm(list = ls()[!ls() %in% 
-                 c('rs_10k', 'sim10k',
+                 c('random_seeds', 'sim10k',
                    't.start', 't.end',
                    'ess_df', 'ess_long', 
                    'max_weights',
@@ -369,7 +369,7 @@ rm(list = ls()[!ls() %in%
                    'simdt110_ycbar', 'x_all',
                    'ybar_df', 'ybar_long', 
                    'ycbar_df', 'ycbar_long')])
-save.image("sim10ksumm.RData")
+##save.image("sim10ksumm.RData")
 ```
 
 ```{r}
