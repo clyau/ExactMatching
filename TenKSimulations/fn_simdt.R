@@ -3,18 +3,17 @@
 ##
 require(dplyr, quietly = TRUE)
 require(tidyverse, quietly = TRUE)
+## for maicChecks usage see section on Exact Matching on https://clyau.github.io/maicChecks/
 require(maicChecks) ## version 0.2.0
 ## 
-##source("funs.R") 
-# source("simulatedExamples15/fnsUpdates/local_exmLP.R")
-# source("simulatedExamples15/fnsUpdates/local_exmWt.R")
+source("funs.R") 
 ## common parameter values
 n1_obs <- 300 ## number of observations in ipd1
 n2_obs <- 300 ## number of observations in ipd2
 # Set the number of variables and the block size
 n_variables <- 15
 block_size <- 5
-# Set the correlation within each block
+# correlation within each block
 rho <- c(0.3, 0.5, 0.7)
 ## correlation matrix for the 15 covariates
 corr_mat <- diag(1, n_variables, n_variables)
@@ -26,12 +25,13 @@ for (i in 1:(n_variables/block_size)) {
 }
 diag(corr_mat) <- 1 ## correct diagonal values
 ##
+## random choice of some variables to categorize
 vars_to_categorize <- c("X1", "X2", "X3", ## in block 1
                         "X6", "X7", "X8", ## in block 2
                         "X11", "X12", "X13", "X14" ## in block 3
 )
 ## some random choices of quantiles from standard normal for 
-## ... categorization for both ipd's
+## ... categorization of selected variables
 vc_co <- list(
   q.x1 = qnorm(0.238),                    ## x1, binary
   q.x2 = qnorm(0.312),                    ## x2, binary
@@ -45,12 +45,18 @@ vc_co <- list(
   q.x14 = qnorm(c(0.18, 0.3, 0.56, 0.72)) ## x14, 5 levels
 )
 ##
-## function that simulates the data ::::::::::::::::::::::::: 
+## function that simulates and match one pair of ipd data ::::::::::::::: 
 ##
 sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
+  
+  ##
+  ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
+  ## :::::::::::::::::::: simulate data :::::::::::::::::::: ##
+  ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
   ## 
-  ## IPD A ::::::::::::::::::::::::::::::::::::::::::::::::::
+  ## IPD A ::::::::::::::::::::::::::::::::::::::::::::::::: ##
   ## 
+  
   set.seed(r_and_s)
   
   simdt1 <- mvtnorm::rmvnorm(
@@ -60,25 +66,14 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
   )
   
   colnames(simdt1) <- paste0('X', 1:15)
-  simdt1 <- as.data.frame(simdt1) ## convert to dataframe
+  simdt1 <- as.data.frame(simdt1) 
   
-  ## simulate response variable
+  ## simulate response variable Y
   set.seed(r_and_s + 100)
   
   ## simulate Y to depend on X1, X3, X8, X11 (all categorical)
   ## ... and X9 and X15 (numerical)
   simdt1 <- simdt1 %>%
-    # mutate(Y = 0.3 * (X1 > qnorm(0.238)) + 
-    #          0.2 * (X3 > qnorm(0.12)) + 
-    #          0.2 * (X3 > qnorm(0.335)) + 
-    #          0.2 * (X3 > qnorm(0.68)) +
-    #          0.15 * (X8 > qnorm(0.23)) + 
-    #          0.15 * (X8 > qnorm(0.56)) +
-    #          0.1 * X9 + 
-    #          0.2 * (X11 > qnorm(0.607)) + 
-    #          0.1 * X15 ,
-    #        Y = Y + rnorm(n = 300, mean = 0, sd = 1)
-    # )
     mutate(Y = 0.3 * (X1 > vc_co$q.x1[1]) + 
              0.2 * (X3 > vc_co$q.x3[1]) + 
              0.2 * (X3 > vc_co$q.x3[2]) + 
@@ -88,17 +83,32 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
              0.1 * X9 + 
              0.2 * (X11 > vc_co$q.x11[1]) + 
              0.1 * X15 ,
-           Y = Y + rnorm(n = 300, mean = 0, sd = 1)
-    )
+           Y = Y + rnorm(n = n1_obs, mean = 0, sd = 1)
+    ) 
   
+  ## simulate another version of the response variable with the same seed
+  set.seed(r_and_s + 100)
   
-  ##                                                ## :::::::::::::: ##
-  ##                                                ## second dataset ##
-  ##                                                ## :::::::::::::: ##
+  ## simulate Yc to depend on X1, X3, X8, X9, X11, and X15 (all numerical)
+  simdt1 <- simdt1 %>%
+    mutate(Yc = 0.3 * X1 + 
+             0.2 * X3 +
+             0.3 * X8 +
+             0.1 * X9 + 
+             0.2 * X11 + 
+             0.1 * X15 ,
+           Yc = Yc + rnorm(n = n1_obs, mean = 0, sd = 1)
+    ) %>%
+    ## convert selected variables to categorical scale 
+    num2cat(df = ., 
+            vars_to_cat = vars_to_categorize, 
+            thresholds = vc_co)
+  
+  ## 
+  ## IPD B :::::::::::::::::::::::::::::::::::::::::::::::::: ##
+  ## 
+  
   set.seed(r_and_s + 10)
-  ##set.seed(877+1)
-  ## set.seed(1502) ## for the single run in appendix
-  ## n2_obs <- 300 ## number of observations in ipd 2
   
   simdt2 <- mvtnorm::rmvnorm(
     n = n2_obs, 
@@ -115,56 +125,60 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
   
   ## simulate response variable
   set.seed(r_and_s + 10 + 100)
-  ## y depends on the numerical version of all these covariates
-  # simdt1 <- simdt1 %>%
-  #   mutate(Y = 0.3 * X1 + 
-  #            0.2 * X3 + 
-  #            0.3 * X8 +
-  #            0.1 * X9 + 
-  #            0.2 * X11 + 
-  #            0.1 * X15 ,
-  #          Y = Y + rnorm(n = 300, mean = 0, sd = 1)
-  #   )
-  ## y depends on categorized X1 and X8, but the numerical
-  ## ... version of all others
+  
+  ## same dependency on X's as simdt1 
   simdt2 <- simdt2 %>%
-    mutate(Y = 0.3 * (X1 > qnorm(0.238)) + 
-             0.2 * (X3 > qnorm(0.12)) + 0.2 * (X3 > qnorm(0.335)) + 0.2 * (X3 > qnorm(0.68)) +
-             0.15 * (X8 > qnorm(0.23)) + 0.15 * (X8 > qnorm(0.56)) +
+    mutate(Y = 0.3 * (X1 > vc_co$q.x1[1]) + 
+             0.2 * (X3 > vc_co$q.x3[1]) + 
+             0.2 * (X3 > vc_co$q.x3[2]) + 
+             0.2 * (X3 > vc_co$q.x3[3]) +
+             0.15 * (X8 > vc_co$q.x8[1]) + 
+             0.15 * (X8 > vc_co$q.x8[2]) +
              0.1 * X9 + 
-             0.2 * (X11 > qnorm(0.607)) + 
+             0.2 * (X11 > vc_co$q.x11[1]) + 
              0.1 * X15 ,
-           Y = Y + rnorm(n = 300, mean = 0, sd = 1)
-    )
+           Y = Y + rnorm(n = n2_obs, mean = 0, sd = 1)
+    ) 
   
-  ##                                               ## :::::::::::::::: ##
-  ##                                               ## combine datasets ##
-  ##                                               ## :::::::::::::::: ##
+  ## simulate another version of the response variable with the same seed
+  set.seed(r_and_s + 10 + 100)
   
-  simdt1 <- num2cat(df = simdt1, 
-                    vars_to_cat = vars_to_categorize, 
-                    thresholds = vc_co)
-  simdt2 <- num2cat(df = simdt2, 
-                    vars_to_cat = vars_to_categorize, 
-                    thresholds = vc_co)
+  ## simulate Yc to depend on X1, X3, X8, X9, X11, and X15 (all numerical)
+  simdt2 <- simdt2 %>%
+    mutate(Yc = 0.3 * X1 + 
+             0.2 * X3 +
+             0.3 * X8 +
+             0.1 * X9 + 
+             0.2 * X11 + 
+             0.1 * X15 ,
+           Yc = Yc + rnorm(n = n2_obs, mean = 0, sd = 1)
+    ) %>%
+    ## convert selected variables to categorical scale 
+    num2cat(df = ., 
+            vars_to_cat = vars_to_categorize, 
+            thresholds = vc_co)
+  
+  ##
+  ## combine datasets :::::::::::::::::::::::::::::::::::::: ##
+  ## 
   
   simdt <- data.frame(rbind(simdt1, simdt2)) %>%
-    mutate(study = c(rep('IPD 1', n1_obs), rep('IPD 2', n2_obs)),
+    mutate(study = c(rep('IPD A', n1_obs), rep('IPD B', n2_obs)),
            id = sprintf("%03d", (1 : (n1_obs + n2_obs))),
-           ipd1 = (study == 'IPD 1')) ## for logistic regression for PS weights
-  ## simdt <- num2cat(simdt, vars_to_cat = vars_to_categorize, thresholds = vc_co)
+           ipd1 = (study == 'IPD A')) ## for logistic regression for PS weights
+  
   ##
-  ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
-  ## :::::::::::::::::::::: calculating weights :::::::::::::::::::::: ##
+  ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
+  ## ::::::::::: matching & calculating weights :::::::::::: ##
+  ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
   ##
-  ##                                              ## :::::::::::::: ##
-  ##                                              ## exact matching ##
-  ##                                              ## :::::::::::::: ##
+  ## exact matching :::::::::::::::::::::::::::::::::::::::: ##
+  ##
   ##
   ## check if matching can be done for unconstrained weights
   ##
-  checks <- local_exmLP.2ipd(simdt[simdt$study == 'IPD 1',], 
-                             simdt[simdt$study == 'IPD 2',],
+  checks <- maicChecks::exmLP.2ipd(simdt[simdt$study == 'IPD A',], 
+                             simdt[simdt$study == 'IPD B',],
                              vars_to_match = paste0('X', 1:15),
                              cat_vars_to_01 = vars_to_categorize,
                              mean.constrained = FALSE
@@ -175,19 +189,19 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
                  checks$lp.check, "rand.seed = ", r_and_s))
   }
   start_time_proc <- proc.time()
-  x.unc <- tryCatch({ ## in case the check does not catch it
-    local_exmWt.2ipd(simdt[simdt$study == 'IPD 1',], 
-                     simdt[simdt$study == 'IPD 2',],
+  x.unc <- tryCatch({ ## in case the linear check does not catch it
+    maicChecks::exmWt.2ipd(simdt[simdt$study == 'IPD A',], 
+                     simdt[simdt$study == 'IPD B',],
                      vars_to_match = paste0('X', 1:15),
                      cat_vars_to_01 = vars_to_categorize,
                      mean.constrained = FALSE)
   }, error = function(e) {
-    ## manually create dummy data
+    ## manually create dummy data if no solution
     ipd1 <- cat201(simdt[simdt$ipd1, paste0('X', 1:15)], vars_to_categorize)
-    ipd1$study <- 'IPD 1'
+    ipd1$study <- 'IPD A'
     ipd1$exm.wts <- NA
     ipd2 <- cat201(simdt[!simdt$ipd1, paste0('X', 1:15)], vars_to_categorize)
-    ipd2$study <- 'IPD 2'
+    ipd2$study <- 'IPD B'
     ipd2$exm.wts <- NA
     list(ipd1 = ipd1,
          ipd2 = ipd2, 
@@ -199,8 +213,8 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
   ##
   ## check if matching can be done for constrained weights
   ##
-  checks <- local_exmLP.2ipd(simdt[simdt$study == 'IPD 1',], 
-                             simdt[simdt$study == 'IPD 2',],
+  checks <- maicChecks::exmLP.2ipd(simdt[simdt$study == 'IPD A',], 
+                             simdt[simdt$study == 'IPD B',],
                              vars_to_match = paste0('X', 1:15),
                              cat_vars_to_01 = vars_to_categorize,
                              mean.constrained = TRUE
@@ -208,28 +222,26 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
   ##
   if(checks$lp.check != 0) {
     ## this checks whether the *constrained* solution exists
-    print(paste0("LP checks for constrained weights = ", checks$lp.check, ", rand.seed = ", r_and_s))
+    print(paste0("LP checks for constrained weights = ", 
+                 checks$lp.check, ", rand.seed = ", r_and_s))
   }
   ##
   start_time_proc <- proc.time()
-  x.con <- tryCatch({ ## in case check does not catch it
+  x.con <- tryCatch({ ## in case the linear check does not catch it
     ## this checks if *constrained* solution exists
-    local_exmWt.2ipd(simdt[simdt$study == 'IPD 1',], 
-                     simdt[simdt$study == 'IPD 2',],
+    maicChecks::exmWt.2ipd(simdt[simdt$study == 'IPD A',], 
+                     simdt[simdt$study == 'IPD B',],
                      vars_to_match = paste0('X', 1:15),
                      cat_vars_to_01 = vars_to_categorize,
                      mean.constrained = TRUE)
   }, error = function(e) {
-    # list(ipd1 = data.frame(exm.wts = rep(NA, n1_obs)),
-    #      ipd2 = data.frame(exm.wts = rep(NA, n2_obs)), 
-    #      wtd.summ = NA
-    # )
+    ## manually create dummy data if no solution
     ipd1 <- cat201(simdt[simdt$ipd1, paste0('X', 1:15)], vars_to_categorize)
-    ipd1$study <- 'IPD 1'
+    ipd1$study <- 'IPD A'
     ipd1$ipd1 <- TRUE
     ipd1$exm.wts <- NA
     ipd2 <- cat201(simdt[!simdt$ipd1, paste0('X', 1:15)], vars_to_categorize)
-    ipd2$study <- 'IPD 2'
+    ipd2$study <- 'IPD B'
     ipd2$ipd1 <- FALSE
     ipd2$exm.wts <- NA
     list(ipd1 = ipd1,
@@ -239,41 +251,47 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
   })
   stop_time_proc <- proc.time()
   run_time_con <- stop_time_proc - start_time_proc
-  ## putting ipd1 and ipd2 together
-  ## use constrained data, i.e. binary/categorical structure
-  ## ... for ps weighted mean calculation
-  ipd <- data.frame(rbind(x.con$ipd1, x.con$ipd2))
-  ## save variable names for later use
-  v_names <- names(ipd)[!(names(ipd) %in% 
-                            c('study', 'ipd1', 'id', 'exm.wts', 'Y'))]
-  ##                                              ## ::::::::::: ##
-  ##                                              ## ps matching ##
-  ##                                              ## ::::::::::: ##
+  
+  ##
+  ## propensity score matching :::::::::::::::::::::::::::::: ##
+  ##
+ 
+  ## ps matching
   psmatch <- glm(ipd1 ~ X4 + X5 + X9 + X10 + X15 +
                    factor(X1) + factor(X2) + factor(X3) +
                    factor(X6) + factor(X7) + factor(X8) + 
                    factor(X11) + factor(X12) + factor(X13) + factor(X14),
                  data = simdt,
                  family = binomial())
-  ## psvalue is derived the same way as 'psvalue2' in ELARA vs ReCORD, which are used in the 
+  
+  ## psvalue is the propensity score
   simdt$psvalue <- predict(psmatch, type = "response")
-  ##                                              ## ::::::::::::::::::::::::: ##
-  ##                                              ## adding weights to dataset ##
-  ##                                              ## ::::::::::::::::::::::::: ##
+  
+  ##
+  ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
+  ## :::::::: putting pieces together for summary :::::::::: ##
+  ## ::::::::::::::::::::::::::::::::::::::::::::::::::::::: ##
+  ##
+  ## adding weights to original dataset :::::::::::::::::::: ##
+  ##  
+  
   simdt <- simdt %>%
     mutate(
-      wt.ps = ifelse(study == 'IPD 1', 
+      ## ps weights
+      wt.ps = ifelse(study == 'IPD A', 
                      1 / psvalue,      ## ipd1
                      1 / (1 - psvalue) ## ipd2
       ),
+      ## unconstrained exact matching weights
       wt.unc = c(x.unc$ipd1$exm.wts,  ## ipd1
                  x.unc$ipd2$exm.wts   ## ipd2
       ),
+      ## constrained exact matching weights
       wt.con = c(x.con$ipd1$exm.wts,  ## ipd1
                  x.con$ipd2$exm.wts   ## ipd2
       )
     ) %>%
-    ## standardize all the weights
+    ## standardize all the weights so they can be compared
     group_by(study) %>%
     mutate(
       wt.unc.sdz = ifelse(is.na(wt.unc), NA, 100 * wt.unc / sum(wt.unc)),
@@ -281,60 +299,76 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
       wt.ps.sdz = 100 * wt.ps / sum(wt.ps)
     ) %>%
     ungroup()
-  ##                                             ## ::::::::::::::::::::::::::: ##
-  ##                                             ## observed and weighted means ##
-  ##                                             ## ::::::::::::::::::::::::::: ##
+  
+  ## 
+  ## observed and weighted means of the variables used in matching ::::: ##
+  ##
+  
+  ipd <- data.frame(rbind(x.con$ipd1, x.con$ipd2))
+  ## v_names contains variables (including indicator names ...
+  ## ... for categorical variables) used in exact matching
+  v_names <- names(ipd)[!(names(ipd) %in% 
+                                   c('study', 'ipd1', 'id', 'exm.wts', 'Y', 'Yc'))]
   ## weighted mean and variance for ps weighted covariates
-  ipd1_ps_wtmean <- sapply(ipd[ipd$study == 'IPD 1', v_names],
+  ## ... variance (SD) needed to calculate SMD
+  ipd1_ps_wtmean <- sapply(ipd[ipd$study == 'IPD A', v_names],
                            function(x) 
                              Hmisc::wtd.mean(
                                x, 
-                               simdt[which(ipd$study == 'IPD 1'), ]$wt.ps.sdz,
+                               simdt[which(ipd$study == 'IPD A'), ]$wt.ps.sdz,
                                normwt = TRUE
                              ))
-  ipd2_ps_wtmean <- sapply(ipd[ipd$study == 'IPD 2', v_names], 
+  ipd2_ps_wtmean <- sapply(ipd[ipd$study == 'IPD B', v_names], 
                            function(x) 
                              Hmisc::wtd.mean(
                                x, 
-                               simdt[ipd$study == 'IPD 2', ]$wt.ps.sdz,
+                               simdt[ipd$study == 'IPD B', ]$wt.ps.sdz,
                                normwt = TRUE
                              ))
-  ipd1_ps_wtvar <- sapply(ipd[ipd$study == 'IPD 1', v_names], 
+  ipd1_ps_wtvar <- sapply(ipd[ipd$study == 'IPD A', v_names], 
                           function(x)
                             Hmisc::wtd.var(
                               x,
-                              simdt[ipd$study == 'IPD 1', ]$wt.ps.sdz,
+                              simdt[ipd$study == 'IPD A', ]$wt.ps.sdz,
                               normwt = TRUE,
                               method = 'ML'
                             ))
-  ipd2_ps_wtvar <- sapply(ipd[ipd$study == 'IPD 2', v_names], 
+  ipd2_ps_wtvar <- sapply(ipd[ipd$study == 'IPD B', v_names], 
                           function(x)
                             Hmisc::wtd.var(
                               x,
-                              simdt[ipd$study == 'IPD 2', ]$wt.ps.sdz,
+                              simdt[ipd$study == 'IPD B', ]$wt.ps.sdz,
                               normwt = TRUE,
                               method = 'ML'
                             ))
   ## pooled standard deviation of the two ipd's
   ps_wtsd_pooled <- sqrt((n1_obs * ipd1_ps_wtvar + 
                             n2_obs * ipd2_ps_wtvar) / (n1_obs + n2_obs))
-  ## weighted sample size, or ESS
-  ipd1_ps_ess <- round(sum(simdt[ipd$study == 'IPD 1', ]$wt.ps.sdz) ^ 2 / 
-                         sum(simdt[ipd$study == 'IPD 1', ]$wt.ps.sdz ^ 2), 1)
-  ipd2_ps_ess <- round(sum(simdt[ipd$study == 'IPD 2', ]$wt.ps.sdz) ^ 2 / 
-                         sum(simdt[ipd$study == 'IPD 2', ]$wt.ps.sdz ^ 2), 1)
+  ## weighted sample size, or ESS of ps matching
+  ipd1_ps_ess <- round(sum(simdt[ipd$study == 'IPD A', ]$wt.ps.sdz) ^ 2 / 
+                         sum(simdt[ipd$study == 'IPD A', ]$wt.ps.sdz ^ 2), 1)
+  ipd2_ps_ess <- round(sum(simdt[ipd$study == 'IPD B', ]$wt.ps.sdz) ^ 2 / 
+                         sum(simdt[ipd$study == 'IPD B', ]$wt.ps.sdz ^ 2), 1)
   
-  ## putting all the means, observed and weighted, into a dataframe for reporting
-  ## unconstrained means
+  ##
+  ## putting all the means (observed and weighted) into a dataframe for reporting
+  ##
+  
+  ## unconstrained matching means (same for ipd1 and ipd2)
+  ## ... unconstrained matching uses full-rank design matrix for
+  ## ... categorical variables, different from constrained matching
+  ## ... therefore, need to be handled separately
   unc_means <- data.frame(ipd12.unc = t(x.unc[['wtd.summ']])) %>%
     mutate(v.names = rownames(.)) %>%
     filter(!(v.names %in% c('ipd1.ess', 'ipd2.ess')))
-  
+
   all_means <- data.frame(
-    ipd1.obs = apply(ipd[ipd$study == 'IPD 1', v_names], 2, mean),
-    ipd2.obs = apply(ipd[ipd$study == 'IPD 2', v_names], 2, mean),
-    ## constraint weighted means of the covariates. same for ipd1 and ipd2
+    ## observed means
+    ipd1.obs = apply(ipd[ipd$study == 'IPD A', v_names], 2, mean),
+    ipd2.obs = apply(ipd[ipd$study == 'IPD B', v_names], 2, mean),
+    ## constraint exact weighted means of the covariates (same for ipd1 and ipd2)
     ipd12.con = x.con$wtd.summ[3:(length(x.con$wtd.summ))],
+    ## ps weighted means
     ipd1.ps = ipd1_ps_wtmean, ## ps weighted means
     ipd2.ps = ipd2_ps_wtmean  ## ps weighted means
   ) %>%
@@ -342,10 +376,10 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
     left_join(unc_means, by = 'v.names') %>%
     select(v.names, ipd1.obs, ipd2.obs, ipd12.unc, ipd12.con, ipd1.ps, ipd2.ps)
   
-  ## below smd is calculated the same way as in 'psAlt_manuscript.Rmd'
+  ## smd (standardized mean difference) for ps matching
   all_means$abs.smd <- abs(all_means$ipd1.ps - all_means$ipd2.ps) / ps_wtsd_pooled
   
-  ##
+  ## ess
   ess <- data.frame(
     ess.ipd1.unc = x.unc$wtd.summ[1],
     ess.ipd2.unc = x.unc$wtd.summ[2],
@@ -355,24 +389,48 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
     ess.ipd2.ps = ipd2_ps_ess
   )
   
-  ## difference in response variable
+  ## difference in response variable Y
   ybar <- data.frame(ipd1.obs = mean(simdt1$Y),
                      ipd2.obs = mean(simdt2$Y),
                      
                      ipd1.unc = Hmisc::wtd.mean(simdt1$Y, 
-                                                simdt[ipd$study == 'IPD 1', ]$wt.unc.sdz),
+                                                simdt[ipd$study == 'IPD A', ]$wt.unc.sdz),
                      ipd2.unc = Hmisc::wtd.mean(simdt2$Y, 
-                                                simdt[ipd$study == 'IPD 2', ]$wt.unc.sdz),
+                                                simdt[ipd$study == 'IPD B', ]$wt.unc.sdz),
                      
                      ipd1.con = Hmisc::wtd.mean(simdt1$Y, 
-                                                simdt[ipd$study == 'IPD 1', ]$wt.con.sdz),
+                                                simdt[ipd$study == 'IPD A', ]$wt.con.sdz),
                      ipd2.con = Hmisc::wtd.mean(simdt2$Y, 
-                                                simdt[ipd$study == 'IPD 2', ]$wt.con.sdz),
+                                                simdt[ipd$study == 'IPD B', ]$wt.con.sdz),
                      
                      ipd1.ps = Hmisc::wtd.mean(simdt1$Y, 
-                                               simdt[ipd$study == 'IPD 1', ]$wt.ps.sdz),
+                                               simdt[ipd$study == 'IPD A', ]$wt.ps.sdz),
                      ipd2.ps = Hmisc::wtd.mean(simdt2$Y, 
-                                               simdt[ipd$study == 'IPD 2', ]$wt.ps.sdz)
+                                               simdt[ipd$study == 'IPD B', ]$wt.ps.sdz)
+  ) %>%
+    mutate(diff.obs = ipd1.obs - ipd2.obs,
+           diff.unc = ipd1.unc - ipd2.unc,
+           diff.con = ipd1.con - ipd2.con,
+           diff.ps = ipd1.ps - ipd2.ps)
+  
+  ## difference in response variable Yc
+  ycbar <- data.frame(ipd1.obs = mean(simdt1$Yc),
+                     ipd2.obs = mean(simdt2$Yc),
+                     
+                     ipd1.unc = Hmisc::wtd.mean(simdt1$Yc, 
+                                                simdt[ipd$study == 'IPD A', ]$wt.unc.sdz),
+                     ipd2.unc = Hmisc::wtd.mean(simdt2$Yc, 
+                                                simdt[ipd$study == 'IPD B', ]$wt.unc.sdz),
+                     
+                     ipd1.con = Hmisc::wtd.mean(simdt1$Yc, 
+                                                simdt[ipd$study == 'IPD A', ]$wt.con.sdz),
+                     ipd2.con = Hmisc::wtd.mean(simdt2$Yc, 
+                                                simdt[ipd$study == 'IPD B', ]$wt.con.sdz),
+                     
+                     ipd1.ps = Hmisc::wtd.mean(simdt1$Yc, 
+                                               simdt[ipd$study == 'IPD A', ]$wt.ps.sdz),
+                     ipd2.ps = Hmisc::wtd.mean(simdt2$Yc, 
+                                               simdt[ipd$study == 'IPD B', ]$wt.ps.sdz)
   ) %>%
     mutate(diff.obs = ipd1.obs - ipd2.obs,
            diff.unc = ipd1.unc - ipd2.unc,
@@ -383,6 +441,7 @@ sim.dt.fn <- function(r_and_s, n1_obs, n2_obs) {
               ess = data.frame(ess),
               all_means = data.frame(all_means), 
               ybar = ybar,
+              ycbar = ycbar,
               run_time = data.frame(cbind(run_time_unc = run_time_unc[1:3], 
                                           run_time_con = run_time_con[1:3]))))
 }
