@@ -24,7 +24,7 @@ source('fn_simdt.R')
 set.seed(20250105)
 rand_seeds <- sample(1:100000, size = 10000, replace = FALSE)
 ## ::::::::::::::::::::::::::::::::: ##
-rs_k <- rand_seeds[1:10] ## ten runs ##
+rs_k <- rand_seeds ## ten runs ##
 ## ::::::::::::::::::::::::::::::::: ##
 t.start <- proc.time()
 sim10k <- mapply(sim.dt.fn,
@@ -123,66 +123,9 @@ x_summ <- data.frame(rbind(c('# of simulations', rep(10000, 3)),
 print(x_summ)
 ```
 
-### Summary of difference in response variable Y
+### Summary of difference in response variable Y and Yc
 
-Figure 6 in manuscript: boxplot of mean difference in response variable Y
-
-```{r}
-selected_elements <- sim10k[4,]
-ybar_df <- do.call(rbind, selected_elements) 
-## ybar_df includes also observed and weighted Y means
-ybar_long <- ybar_df %>% 
-  pivot_longer(cols = c("diff.obs", "diff.unc", "diff.con", "diff.ps"),
-               names_to = 'type',
-               values_to = 'ybar.diff') %>%
-  mutate(method = ifelse(type == 'diff.obs', 'Observed',
-                         ifelse(type == 'diff.unc',  'Unconstrained',
-                                ifelse(type == 'diff.con', 'Constrained', 'PS weighted'))
-                        ),
-         method = factor(method, 
-                         levels = c('Observed', 'Unconstrained',
-                                    'Constrained', 'PS weighted'))
-         ) %>%
-  select(ybar.diff, type, method) %>%
-  filter(!is.na(ybar.diff))
-## reverse the method levels for boxplot
-ybar_long <- ybar_long %>% 
-  mutate(method = factor(method, 
-                         levels = c('PS weighted', 
-                                    'Constrained',
-                                    'Unconstrained', 
-                                    'Observed'))
-  )
-```
-
-```{r ybarDiff, fig.width=10, fig.height=6}
-p22k <- ggplot(ybar_long, aes(ybar.diff, method)) +
-  geom_boxplot(orientation = 'y') + 
-  geom_vline(xintercept = 0, 
-             color = 'red', 
-             linetype = 'dashed',
-             lwd = 1) +
-  theme_bw() +
-  scale_x_continuous(breaks = seq(-2, 2.55, 0.5)) +
-  theme(
-    axis.title.x = element_text(size = 13),   
-    axis.title.y = element_text(size = 13),  
-    axis.text.x = element_text(size = 12),    
-    axis.text.y = element_text(size = 12)     
-  ) +
-  xlab('Difference in mean responses') +
-  ylab(NULL) 
-##
-print(p22k)
-# ggsave('boxYbar.png', 
-#        plot = p22k, 
-#        width = 10, 
-#        height = 3, 
-#        units = 'in',
-#        dpi = 300)
-```
-
-Figure 7 in manuscript: boxplot of mean difference in response variable Yc
+Figure 6 in manuscript: boxplot of mean difference in response variable Yc
 
 ```{r}
 selected_elements <- sim10k[5,]
@@ -233,6 +176,64 @@ p24k <- ggplot(ycbar_long, aes(ycbar.diff, method)) +
 print(p24k)
 # ggsave('boxYcbar.png', 
 #        plot = p24k, 
+#        width = 10, 
+#        height = 3, 
+#        units = 'in',
+#        dpi = 300)
+```
+
+
+Figure 7 in manuscript: boxplot of mean difference in response variable Y
+
+```{r}
+selected_elements <- sim10k[4,]
+ybar_df <- do.call(rbind, selected_elements) 
+## ybar_df includes also observed and weighted Y means
+ybar_long <- ybar_df %>% 
+  pivot_longer(cols = c("diff.obs", "diff.unc", "diff.con", "diff.ps"),
+               names_to = 'type',
+               values_to = 'ybar.diff') %>%
+  mutate(method = ifelse(type == 'diff.obs', 'Observed',
+                         ifelse(type == 'diff.unc',  'Unconstrained',
+                                ifelse(type == 'diff.con', 'Constrained', 'PS weighted'))
+                        ),
+         method = factor(method, 
+                         levels = c('Observed', 'Unconstrained',
+                                    'Constrained', 'PS weighted'))
+         ) %>%
+  select(ybar.diff, type, method) %>%
+  filter(!is.na(ybar.diff))
+## reverse the method levels for boxplot
+ybar_long <- ybar_long %>% 
+  mutate(method = factor(method, 
+                         levels = c('PS weighted', 
+                                    'Constrained',
+                                    'Unconstrained', 
+                                    'Observed'))
+  )
+```
+
+```{r ybarDiff, fig.width=10, fig.height=6}
+p22k <- ggplot(ybar_long, aes(ybar.diff, method)) +
+  geom_boxplot(orientation = 'y') + 
+  geom_vline(xintercept = 0, 
+             color = 'red', 
+             linetype = 'dashed',
+             lwd = 1) +
+  theme_bw() +
+  scale_x_continuous(breaks = seq(-2, 2.55, 0.5)) +
+  theme(
+    axis.title.x = element_text(size = 13),   
+    axis.title.y = element_text(size = 13),  
+    axis.text.x = element_text(size = 12),    
+    axis.text.y = element_text(size = 12)     
+  ) +
+  xlab('Difference in mean responses') +
+  ylab(NULL) 
+##
+print(p22k)
+# ggsave('boxYbar.png', 
+#        plot = p22k, 
 #        width = 10, 
 #        height = 3, 
 #        units = 'in',
